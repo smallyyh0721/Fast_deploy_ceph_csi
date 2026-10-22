@@ -1,0 +1,46 @@
+# Fast_deploy_ceph_csi — copy to cluster.conf and edit.
+# Sourced by bash.
+
+CSI_VERSION="v3.18.1"
+BUNDLE_DIR="/opt/ceph-csi-offline"
+
+# K8s local registry (same as Fast_deploy_k8s)
+NODE_IP="10.250.0.11"
+REGISTRY_PORT=5000
+# REGISTRY is derived as NODE_IP:REGISTRY_PORT unless set:
+# REGISTRY="10.250.0.11:5000"
+
+# Namespace for CSI pods + secrets
+NAMESPACE="ceph-csi"
+
+# Ceph monitor VIP from cephadm ingress (placeholder — replace on site)
+# Prefer VIP:3300 (msgr2) or VIP:6789 (legacy). Comma-separated OK.
+CEPH_MON_VIP="10.250.0.10:6789"
+
+# clusterID must match ceph-csi-config; recommended = `ceph fsid`
+CLUSTER_ID="REPLACE_WITH_CEPH_FSID"
+
+# RBD pool (created on Ceph before apply)
+RBD_POOL="kubernetes"
+
+# Single-node K8s: set 1 (upstream default is 3 + anti-affinity)
+PROVISIONER_REPLICAS=1
+
+# Paths to key files produced by create-cephx-users.sh (base64 not needed; script reads raw key)
+# userID must NOT include "client." prefix
+CSI_USER_ID="csi-rbd"
+CSI_USER_KEY_FILE="/opt/ceph-csi-offline/secrets/csi-rbd.key"
+
+# Image tags (override only if you rebuilt the bundle)
+CEPHCSI_IMAGE="cephcsi/cephcsi:v3.18.1"
+CSI_PROVISIONER_IMAGE="sig-storage/csi-provisioner:v6.3.0"
+CSI_ATTACHER_IMAGE="sig-storage/csi-attacher:v4.13.0"
+CSI_RESIZER_IMAGE="sig-storage/csi-resizer:v2.2.1"
+CSI_SNAPSHOTTER_IMAGE="sig-storage/csi-snapshotter:v8.6.0"
+CSI_REGISTRAR_IMAGE="sig-storage/csi-node-driver-registrar:v2.18.0"
+
+# StorageClass
+STORAGE_CLASS_NAME="csi-rbd-sc"
+SC_FSTYPE="ext4"
+SC_RECLAIM_POLICY="Delete"
+SC_ALLOW_EXPANSION="true"

@@ -1,0 +1,6 @@
+offline/cluster.conf
+offline/manifests/generated/
+offline/secrets/
+*.key
+*.keyring
+.DS_Store
