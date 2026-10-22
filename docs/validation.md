@@ -1,16 +1,14 @@
 # Validation
 
-## Done in this toolkit build
-
 | Check | Result |
 |---|---|
-| Version pin (ceph-csi v3.18.1 + sidecars from upstream deploy YAMLs) | OK |
-| Bundle build (pull images, tar, SHA256) | see progress.md |
-| Manifest render dry-run (`apply-rbd-csi.sh` logic / sed rewrite) | OK on build host with fake conf |
-| Full PVC smoke on air-gapped K8s + Ceph+VIP | **Not run** if VMs unavailable — residual risk |
+| Version pin: ceph-csi v3.18.1 (K8s 1.34–1.36 matrix) + sidecars from upstream deploy YAMLs | OK |
+| Bundle build (6 images → tar + SHA256) | OK |
+| Manifest render (`RENDER_ONLY=1`): VIP in ceph-csi-config, images → `NODE_IP:5000/...`, SC + Secret templates | OK |
+| `load-images.sh` / `kubectl apply` on live air-gapped K8s | Not run here |
+| PVC Bound + Pod mount against Ceph VIP | **Not run** — residual risk |
 
 ## Residual risk
 
-- End-to-end RBD map/mount depends on kernel `rbd` module on K8s nodes, VIP reachability, and correct CephX caps.
-- Single-node provisioner anti-affinity stripped only when `PROVISIONER_REPLICAS=1`.
-- Smoke pod image must exist in the local registry (pause from Fast_deploy_k8s).
+- Needs kernel `rbd` on K8s nodes, VIP reachability (`CEPH_MON_VIP`), correct CephX caps, and RBD pool ready.
+- Smoke file is PVC-only; a mount Pod needs an image already in the local registry.
