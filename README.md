@@ -33,3 +33,7 @@ This repo is **CSI only**. It does **not** bundle K8s or Ceph daemons. CephFS CS
 2. Ceph healthy + **VIP** monitors (`Fast_deploy_ceph` ingress)
 3. Create RBD pool + CephX users (on Ceph)
 4. Load CSI images → apply RBD CSI → PVC smoke
+
+## Release
+
+- [bundle-rbd-csi-v3.18.1](https://github.com/smallyyh0721/Fast_deploy_ceph_csi/releases/tag/bundle-rbd-csi-v3.18.1) — `ceph-csi-rbd-v3.18.1-offline-bundle.tar`
