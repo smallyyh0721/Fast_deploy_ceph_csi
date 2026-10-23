@@ -35,7 +35,11 @@ sudo cp cluster.conf.example cluster.conf
 # 把本目录 create-cephx-users.sh 拷到 Ceph node1，或在本机有 cephadm 时：
 sudo ./create-cephx-users.sh
 # 记录 FSID → CLUSTER_ID；把 secrets/csi-rbd.key 拷到 K8s 节点
+# 脚本把 key/keyring 写到宿主机 OUT_DIR（默认 ./secrets）；不要对 cephadm shell 用 -o /tmp
+# 用户已存在时可再跑一遍：幂等刷新 caps，并重写 secrets 文件
 ```
+
+手工命令见 `offline/create-cephx-users.md`（`get-or-create` 不带 `-o`，再用 `auth get-key` / `auth get` 重定向到宿主机）。
 
 确认 VIP 可达：`nc -vz 10.250.0.10 6789`（或 3300）。
 

@@ -44,20 +44,24 @@ fi
 "${CEPH[@]}" rbd pool init "$RBD_POOL" 2>/dev/null || true
 
 echo "== CephX user client.${CSI_USER_ID}"
-# Caps sufficient for provisioner + nodeplugin with a single Secret
+# Caps sufficient for provisioner + nodeplugin with a single Secret.
+# Do NOT pass -o to paths like /tmp or OUT_DIR: under `cephadm shell` those are
+# inside the container, so a later host-side cp fails with "No such file".
+# Idempotent: get-or-create refreshes caps; get-key / auth get rewrite host secrets.
 "${CEPH[@]}" auth get-or-create "client.${CSI_USER_ID}" \
   mon 'profile rbd' \
   mgr 'allow rw' \
-  osd "profile rbd pool=${RBD_POOL}, profile rbd pool=kubernetes" \
-  -o "/tmp/client.${CSI_USER_ID}.keyring"
+  osd "profile rbd pool=${RBD_POOL}, profile rbd pool=kubernetes"
 
-# Extract key= value
+# Key for K8s Secret (host path)
 KEY=$("${CEPH[@]}" auth get-key "client.${CSI_USER_ID}")
+[ -n "$KEY" ] || die "empty key from auth get-key client.${CSI_USER_ID}"
 printf '%s\n' "$KEY" > "$OUT_DIR/${CSI_USER_ID}.key"
 chmod 600 "$OUT_DIR/${CSI_USER_ID}.key"
-# Also keep full keyring for reference (do not commit)
-"${CEPH[@]}" auth get "client.${CSI_USER_ID}" -o "$OUT_DIR/client.${CSI_USER_ID}.keyring" 2>/dev/null || \
-  cp "/tmp/client.${CSI_USER_ID}.keyring" "$OUT_DIR/client.${CSI_USER_ID}.keyring"
+
+# Full keyring on host via stdout redirect (not container -o /tmp)
+"${CEPH[@]}" auth get "client.${CSI_USER_ID}" > "$OUT_DIR/client.${CSI_USER_ID}.keyring"
+chmod 600 "$OUT_DIR/client.${CSI_USER_ID}.keyring"
 chmod 600 "$OUT_DIR"/* 2>/dev/null || true
 
 cat <<MSG
