@@ -7,3 +7,5 @@ registry.k8s.io/sig-storage/csi-attacher:v4.13.0
 registry.k8s.io/sig-storage/csi-resizer:v2.2.1
 registry.k8s.io/sig-storage/csi-snapshotter:v8.6.0
 registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.18.0
+# Smoke pod (same tag as Fast_deploy_k8s / kubeadm 1.35.7)
+registry.k8s.io/pause:3.10.1

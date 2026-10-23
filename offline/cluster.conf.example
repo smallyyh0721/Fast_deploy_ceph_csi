@@ -49,3 +49,8 @@ STORAGE_CLASS_NAME="csi-rbd-sc"
 SC_FSTYPE="ext4"
 SC_RECLAIM_POLICY="Delete"
 SC_ALLOW_EXPANSION="true"
+
+# Smoke test (offline/smoke-rbd.sh) — pause tag matches Fast_deploy_k8s / kubeadm 1.35.7
+PAUSE_TAG="3.10.1"
+# Local registry path becomes ${REGISTRY}/pause:${PAUSE_TAG}
+

@@ -69,6 +69,9 @@ load_conf() {
   : "${CSI_RESIZER_IMAGE:=sig-storage/csi-resizer:v2.2.1}"
   : "${CSI_SNAPSHOTTER_IMAGE:=sig-storage/csi-snapshotter:v8.6.0}"
   : "${CSI_REGISTRAR_IMAGE:=sig-storage/csi-node-driver-registrar:v2.18.0}"
+  # Smoke pod image — match Fast_deploy_k8s / kubeadm 1.35.7 PauseVersion
+  : "${PAUSE_TAG:=3.10.1}"
+  : "${PAUSE_IMAGE:=pause:${PAUSE_TAG}}"
   # Prefer already-set REGISTRY (CLI via parse_registry_cli, or env); else conf
   REGISTRY="${REGISTRY:-${NODE_IP}:${REGISTRY_PORT}}"
   if [ -f "$BUNDLE_DIR/images/TAGS.env" ]; then

@@ -25,6 +25,7 @@ This repo is **CSI only**. It does **not** bundle K8s or Ceph daemons. CephFS CS
   2. `load-images.sh` — import + push to local registry (`HOST:PORT` / `--registry` / `REGISTRY` env override conf)
   3. Ceph side: `create-cephx-users.sh` (on Ceph admin)
   4. `apply-rbd-csi.sh` — render manifests (VIP + secrets) and apply (same registry override)
+  5. `smoke-rbd.sh` — apply `90-smoke-pvc-pod.yaml` (PVC+pause Pod) and wait for Bound
 - `docs/runbook.md` — **现场操作手册**
 
 ## Field order
@@ -32,7 +33,7 @@ This repo is **CSI only**. It does **not** bundle K8s or Ceph daemons. CephFS CS
 1. K8s Ready (`Fast_deploy_k8s`)
 2. Ceph healthy + **VIP** monitors (`Fast_deploy_ceph` ingress)
 3. Create RBD pool + CephX users (on Ceph)
-4. Load CSI images → apply RBD CSI → PVC smoke
+4. Load CSI images → apply RBD CSI → `./smoke-rbd.sh` (PVC+pause)
 
 ## Release
 

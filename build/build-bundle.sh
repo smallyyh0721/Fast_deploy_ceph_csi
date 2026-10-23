@@ -39,6 +39,7 @@ save_one "registry.k8s.io/sig-storage/csi-attacher:v4.13.0"         "$OUT/images
 save_one "registry.k8s.io/sig-storage/csi-resizer:v2.2.1"           "$OUT/images/csi-resizer-v2.2.1.tar"
 save_one "registry.k8s.io/sig-storage/csi-snapshotter:v8.6.0"       "$OUT/images/csi-snapshotter-v8.6.0.tar"
 save_one "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.18.0" "$OUT/images/csi-node-driver-registrar-v2.18.0.tar"
+save_one "registry.k8s.io/pause:3.10.1"                                   "$OUT/images/pause-3.10.1.tar"
 
 cat > "$OUT/images/TAGS.env" <<TAGS
 CSI_VERSION=v3.18.1
@@ -48,6 +49,8 @@ CSI_ATTACHER_IMAGE=sig-storage/csi-attacher:v4.13.0
 CSI_RESIZER_IMAGE=sig-storage/csi-resizer:v2.2.1
 CSI_SNAPSHOTTER_IMAGE=sig-storage/csi-snapshotter:v8.6.0
 CSI_REGISTRAR_IMAGE=sig-storage/csi-node-driver-registrar:v2.18.0
+PAUSE_TAG=3.10.1
+PAUSE_IMAGE=pause:3.10.1
 TAGS
 
 echo "== copy offline scripts + vendor + docs"

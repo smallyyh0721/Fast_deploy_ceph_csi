@@ -52,6 +52,12 @@ load_tar "$IMGDIR/csi-attacher-v4.13.0.tar"
 load_tar "$IMGDIR/csi-resizer-v2.2.1.tar"
 load_tar "$IMGDIR/csi-snapshotter-v8.6.0.tar"
 load_tar "$IMGDIR/csi-node-driver-registrar-v2.18.0.tar"
+# pause for smoke-rbd.sh (also shipped by Fast_deploy_k8s); optional if older CSI bundles
+if [ -s "$IMGDIR/pause-${PAUSE_TAG}.tar" ]; then
+  load_tar "$IMGDIR/pause-${PAUSE_TAG}.tar"
+else
+  warn "pause-${PAUSE_TAG}.tar missing in CSI bundle — smoke needs ${REGISTRY}/pause:${PAUSE_TAG} from Fast_deploy_k8s or a rebuilt CSI bundle"
+fi
 
 # Source refs as saved by podman (may include docker.io/ or registry.k8s.io/)
 tag_and_push "quay.io/cephcsi/cephcsi:v3.18.1"                         "${REGISTRY}/${CEPHCSI_IMAGE}"
@@ -60,6 +66,11 @@ tag_and_push "registry.k8s.io/sig-storage/csi-attacher:v4.13.0"         "${REGIS
 tag_and_push "registry.k8s.io/sig-storage/csi-resizer:v2.2.1"           "${REGISTRY}/${CSI_RESIZER_IMAGE}"
 tag_and_push "registry.k8s.io/sig-storage/csi-snapshotter:v8.6.0"       "${REGISTRY}/${CSI_SNAPSHOTTER_IMAGE}"
 tag_and_push "registry.k8s.io/sig-storage/csi-node-driver-registrar:v2.18.0" "${REGISTRY}/${CSI_REGISTRAR_IMAGE}"
+if ctr -n k8s.io images ls -q | grep -Eq "pause:${PAUSE_TAG}$|/pause:${PAUSE_TAG}$|registry.k8s.io/pause:${PAUSE_TAG}$"; then
+  tag_and_push "registry.k8s.io/pause:${PAUSE_TAG}" "${REGISTRY}/${PAUSE_IMAGE}"
+else
+  warn "pause:${PAUSE_TAG} not in containerd — skip push; check: ctr -n k8s.io images ls | grep pause"
+fi
 
 log "catalog:"
 curl -fsS "http://${REGISTRY}/v2/_catalog" || true

@@ -170,8 +170,8 @@ mountOptions:
   - discard
 YAML
 
-# --- optional smoke PVC (Pod needs a writable image already in local registry) ---
-cat > "$OUT/90-smoke-pvc.yaml" <<YAML
+# --- optional smoke PVC+Pod (apply via smoke-rbd.sh; uses local registry pause) ---
+cat > "$OUT/90-smoke-pvc-pod.yaml" <<YAML
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -184,7 +184,26 @@ spec:
     requests:
       storage: 1Gi
   storageClassName: ${STORAGE_CLASS_NAME}
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: rbd-smoke-pod
+  namespace: default
+spec:
+  containers:
+    - name: pause
+      image: ${REGISTRY}/${PAUSE_IMAGE}
+      imagePullPolicy: IfNotPresent
+      volumeMounts:
+        - name: rbd
+          mountPath: /mnt/rbd
+  volumes:
+    - name: rbd
+      persistentVolumeClaim:
+        claimName: rbd-smoke-pvc
 YAML
+rm -f "$OUT/90-smoke-pvc.yaml" 2>/dev/null || true
 
 log "rendered manifests in $OUT"
 if [ "$RENDER_ONLY" = "1" ]; then
@@ -210,4 +229,4 @@ log "wait for CSI pods in $NS"
 kubectl -n "$NS" rollout status deploy/csi-rbdplugin-provisioner --timeout=180s || warn "provisioner not ready yet"
 kubectl -n "$NS" get pods -o wide
 kubectl get sc "$STORAGE_CLASS_NAME"
-log "done. Smoke: kubectl apply -f $OUT/90-smoke-pvc.yaml (PVC only); see docs/runbook.md"
+log "done. Smoke: sudo ./smoke-rbd.sh   # applies $OUT/90-smoke-pvc-pod.yaml"

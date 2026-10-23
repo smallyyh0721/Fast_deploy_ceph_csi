@@ -70,16 +70,26 @@ kubectl get sc csi-rbd-sc
 
 ## 5. PVC 冒烟（可选）
 
-`apply-rbd-csi.sh` 生成 `manifests/generated/90-smoke-pvc-pod.yaml`。  
-默认容器镜像指向本机 registry 的 `pause`（只挂载不写盘）。要写盘请换成节点上已有的镜像，例如：
+先完成 §4 `apply-rbd-csi.sh`（会生成 `manifests/generated/90-smoke-pvc-pod.yaml`：PVC + pause Pod）。  
+冒烟镜像为本地 registry 的 `pause:3.10.1`（与 Fast_deploy_k8s / kubeadm 1.35.7 一致，`imagePullPolicy: IfNotPresent`）。只挂载不写盘。
 
 ```bash
-kubectl apply -f manifests/generated/90-smoke-pvc-pod.yaml
-kubectl get pvc rbd-smoke-pvc
-kubectl describe pvc rbd-smoke-pvc
+# 一条命令：检查 pause → apply PVC+Pod → 等待 Bound
+sudo ./smoke-rbd.sh
+# 或: sudo ./smoke-rbd.sh --registry 192.168.180.16:5000
 ```
 
-合格：PVC Bound；Pod Running；`kubectl -n ceph-csi logs` 无持续报错。
+pause 检查（现场自检）：
+
+```bash
+curl -s http://$NODE_IP:5000/v2/_catalog
+curl -s http://$NODE_IP:5000/v2/pause/tags/list
+ctr -n k8s.io images ls | grep pause
+```
+
+若 catalog 无 pause：先跑 Fast_deploy_k8s 的 `setup-registry.sh`，或使用含 `pause-3.10.1.tar` 的新 CSI 离线包后再 `sudo ./load-images.sh`。
+
+合格：PVC `rbd-smoke-pvc` Bound；Pod `rbd-smoke-pod` Running；`kubectl -n ceph-csi logs` 无持续报错。
 
 ## 6. 兼容矩阵（钉死）
 
