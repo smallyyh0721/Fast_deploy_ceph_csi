@@ -1,9 +1,17 @@
 #!/usr/bin/env bash
-# Load CSI image tars into containerd and push to the K8s local registry (NODE_IP:5000).
+# Load CSI image tars into containerd and push to the K8s local registry.
+# Registry priority: CLI > env REGISTRY > cluster.conf (NODE_IP:REGISTRY_PORT)
+# Examples:
+#   sudo ./load-images.sh
+#   sudo ./load-images.sh 192.168.180.16:5000
+#   sudo ./load-images.sh --registry 192.168.180.16:5000
 # Requires: Fast_deploy_k8s registry already running (k8s-local-registry / curl http://$REGISTRY/v2/).
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
+parse_registry_cli "$@"
+[ "${#REGISTRY_CLI_REST[@]}" -eq 0 ] || die "unknown args: ${REGISTRY_CLI_REST[*]}"
 need_root; load_conf
+log "using registry: ${REGISTRY}"
 
 IMGDIR="$BUNDLE_DIR/images"
 [ -d "$IMGDIR" ] || die "$IMGDIR missing — extract the CSI bundle to BUNDLE_DIR"

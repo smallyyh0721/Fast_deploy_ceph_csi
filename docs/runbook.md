@@ -43,14 +43,21 @@ sudo ./create-cephx-users.sh
 
 ```bash
 # registry 已由 Fast_deploy_k8s 拉起
+# 默认读 cluster.conf 的 NODE_IP:REGISTRY_PORT
 sudo ./load-images.sh
+# 现场 registry 与 example 不一致时，CLI 优先（不必改 conf）：
+# sudo ./load-images.sh 192.168.180.16:5000
+# sudo ./load-images.sh --registry 192.168.180.16:5000
+# 或: export REGISTRY=192.168.180.16:5000 && sudo -E ./load-images.sh
 ```
 
 ## 4. 部署 RBD CSI
 
 ```bash
 # cluster.conf 已填 CLUSTER_ID、CEPH_MON_VIP、CSI_USER_KEY_FILE
+# 与 load-images 使用同一 REGISTRY（同样支持 CLI / 环境变量）
 sudo ./apply-rbd-csi.sh
+# sudo ./apply-rbd-csi.sh --registry 192.168.180.16:5000
 kubectl -n ceph-csi get pods -o wide
 kubectl get sc csi-rbd-sc
 ```

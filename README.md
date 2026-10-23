@@ -22,9 +22,9 @@ This repo is **CSI only**. It does **not** bundle K8s or Ceph daemons. CephFS CS
 - `build/build-bundle.sh` — internet machine: pull images → tar + `SHA256SUMS`
 - `offline/` — air-gapped K8s node:
   1. `cluster.conf` (from example)
-  2. `load-images.sh` — import + push to local registry
+  2. `load-images.sh` — import + push to local registry (`HOST:PORT` / `--registry` / `REGISTRY` env override conf)
   3. Ceph side: `create-cephx-users.sh` (on Ceph admin)
-  4. `apply-rbd-csi.sh` — render manifests (VIP + secrets) and apply
+  4. `apply-rbd-csi.sh` — render manifests (VIP + secrets) and apply (same registry override)
 - `docs/runbook.md` — **现场操作手册**
 
 ## Field order

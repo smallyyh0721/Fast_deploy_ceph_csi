@@ -10,6 +10,51 @@ die()  { printf '\033[1;31m[FAIL]\033[0m %s\n' "$*" >&2; exit 1; }
 
 need_root() { [ "$(id -u)" -eq 0 ] || die "run as root (sudo)"; }
 
+
+# Parse registry from CLI before load_conf.
+# Effective priority after load_conf: CLI > env REGISTRY > NODE_IP:REGISTRY_PORT
+# Supports: --registry HOST:PORT | --registry=HOST:PORT | HOST:PORT
+# When CLI provides a value, exports REGISTRY for load_conf to keep.
+# Leftover args land in REGISTRY_CLI_REST (bash array).
+parse_registry_cli() {
+  REGISTRY_CLI_REST=()
+  local got=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -h|--help)
+        cat <<'USAGE' >&2
+Usage: script [HOST:PORT] | [--registry HOST:PORT]
+  CLI registry overrides env REGISTRY and cluster.conf (NODE_IP:REGISTRY_PORT).
+  With no CLI/env, REGISTRY is derived from cluster.conf as before.
+USAGE
+        exit 0
+        ;;
+      --registry)
+        [ $# -ge 2 ] || die "--registry needs HOST:PORT"
+        got="$2"
+        shift 2
+        ;;
+      --registry=*)
+        got="${1#--registry=}"
+        shift
+        ;;
+      *)
+        if [ -z "$got" ] && [[ "$1" == *:* ]] && [[ ! "$1" == -* ]]; then
+          got="$1"
+          shift
+        else
+          REGISTRY_CLI_REST+=("$1")
+          shift
+        fi
+        ;;
+    esac
+  done
+  if [ -n "$got" ]; then
+    [[ "$got" == *:* ]] || die "registry must look like HOST:PORT (got: $got)"
+    export REGISTRY="$got"
+  fi
+}
+
 load_conf() {
   [ -f "$CONF" ] || die "config $CONF not found (cp cluster.conf.example cluster.conf)"
   # shellcheck source=/dev/null
@@ -24,6 +69,7 @@ load_conf() {
   : "${CSI_RESIZER_IMAGE:=sig-storage/csi-resizer:v2.2.1}"
   : "${CSI_SNAPSHOTTER_IMAGE:=sig-storage/csi-snapshotter:v8.6.0}"
   : "${CSI_REGISTRAR_IMAGE:=sig-storage/csi-node-driver-registrar:v2.18.0}"
+  # Prefer already-set REGISTRY (CLI via parse_registry_cli, or env); else conf
   REGISTRY="${REGISTRY:-${NODE_IP}:${REGISTRY_PORT}}"
   if [ -f "$BUNDLE_DIR/images/TAGS.env" ]; then
     # shellcheck source=/dev/null

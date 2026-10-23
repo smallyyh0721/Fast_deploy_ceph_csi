@@ -1,9 +1,17 @@
 #!/usr/bin/env bash
 # Render RBD CSI manifests (local registry + VIP + secrets) and kubectl apply.
+# Registry priority: CLI > env REGISTRY > cluster.conf (NODE_IP:REGISTRY_PORT)
+# Examples:
+#   sudo ./apply-rbd-csi.sh
+#   sudo ./apply-rbd-csi.sh 192.168.180.16:5000
+#   sudo ./apply-rbd-csi.sh --registry 192.168.180.16:5000
 # Prerequisites: load-images.sh done; CephX key file present; kubectl works.
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
+parse_registry_cli "$@"
+[ "${#REGISTRY_CLI_REST[@]}" -eq 0 ] || die "unknown args: ${REGISTRY_CLI_REST[*]}"
 need_root; load_conf
+log "using registry: ${REGISTRY}"
 RENDER_ONLY=${RENDER_ONLY:-0}
 if [ "$RENDER_ONLY" != "1" ]; then
   export_kubeconfig
