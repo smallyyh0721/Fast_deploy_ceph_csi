@@ -78,10 +78,12 @@ kubectl get sc csi-rbd-sc
 sudo ./smoke-rbd.sh
 # 或: sudo ./smoke-rbd.sh --registry 192.168.180.16:5000
 # Pod 等待超时：--pod-timeout > 环境变量 SMOKE_POD_TIMEOUT > cluster.conf > 默认 180s
-# 格式 ^[0-9]+[smh]?$（纯数字按秒）；空值或非法值直接报错退出
+# 格式 ^[0-9]+[smh]?$（纯数字按秒）；空值、0 或非法值直接报错退出
 # sudo ./smoke-rbd.sh --pod-timeout 300s   # 或 SMOKE_POD_TIMEOUT=5m sudo -E ./smoke-rbd.sh
 # 帮助: ./smoke-rbd.sh --help
 ```
+
+> 升级提示：旧 `cluster.conf.example` 复制出的 conf 里是硬编码 `SMOKE_POD_TIMEOUT=180s`，会覆盖环境变量。请改成 `SMOKE_POD_TIMEOUT="${SMOKE_POD_TIMEOUT-180s}"`。另外普通 `sudo` 会丢掉环境变量，用 `sudo -E` 或直接传 `--pod-timeout`。
 
 pause 检查（现场自检）：
 
