@@ -74,10 +74,13 @@ kubectl get sc csi-rbd-sc
 冒烟镜像为本地 registry 的 `pause:3.10.1`（与 Fast_deploy_k8s / kubeadm 1.35.7 一致，`imagePullPolicy: IfNotPresent`）。只挂载不写盘。
 
 ```bash
-# 一条命令：检查 pause → apply PVC+Pod → 等待 Bound
+# 一条命令：检查 pause → apply PVC+Pod → 等待 PVC Bound → 等待 Pod Ready
 sudo ./smoke-rbd.sh
 # 或: sudo ./smoke-rbd.sh --registry 192.168.180.16:5000
-# Pod 等待超时（默认 180s，或 cluster.conf SMOKE_POD_TIMEOUT）: sudo ./smoke-rbd.sh --pod-timeout 300s
+# Pod 等待超时：--pod-timeout > 环境变量 SMOKE_POD_TIMEOUT > cluster.conf > 默认 180s
+# 格式 ^[0-9]+[smh]?$（纯数字按秒）；空值或非法值直接报错退出
+# sudo ./smoke-rbd.sh --pod-timeout 300s   # 或 SMOKE_POD_TIMEOUT=5m sudo -E ./smoke-rbd.sh
+# 帮助: ./smoke-rbd.sh --help
 ```
 
 pause 检查（现场自检）：

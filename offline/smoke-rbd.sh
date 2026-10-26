@@ -1,27 +1,41 @@
 #!/usr/bin/env bash
-# Apply RBD CSI smoke PVC+Pod and wait for Bound.
+# Apply RBD CSI smoke PVC+Pod, wait for PVC Bound, then for Pod Ready.
 # Registry priority: CLI > env REGISTRY > cluster.conf
 # Examples:
 #   sudo ./smoke-rbd.sh
 #   sudo ./smoke-rbd.sh 192.168.180.16:5000
 #   sudo ./smoke-rbd.sh --registry 192.168.180.16:5000
 #   sudo ./smoke-rbd.sh --pod-timeout 300s
-# Pod Ready timeout priority: --pod-timeout > env/cluster.conf SMOKE_POD_TIMEOUT > 180s
+# Pod Ready timeout priority: --pod-timeout > env SMOKE_POD_TIMEOUT > cluster.conf > 180s
+# Timeout must match ^[0-9]+[smh]?$ (bare number = seconds). Empty/invalid -> error.
 set -euo pipefail
+usage() {
+  cat <<'USAGE'
+Usage: sudo ./smoke-rbd.sh [REGISTRY | --registry HOST:PORT] [--pod-timeout T]
+  --pod-timeout T   Pod Ready wait, ^[0-9]+[smh]?$ (e.g. 180, 300s, 5m). Default 180s.
+                    Also via env/cluster.conf SMOKE_POD_TIMEOUT. Empty or invalid -> error.
+USAGE
+}
+case " $* " in *" -h "*|*" --help "*) usage; exit 0 ;; esac
 . "$(dirname "$0")/lib.sh"
 parse_registry_cli "$@"
-POD_TIMEOUT_CLI=""
+POD_TIMEOUT_CLI=""; POD_TIMEOUT_CLI_SET=0
 set -- ${REGISTRY_CLI_REST[@]+"${REGISTRY_CLI_REST[@]}"}
 while [ $# -gt 0 ]; do
   case "$1" in
-    --pod-timeout) [ $# -ge 2 ] || die "--pod-timeout needs a value"; POD_TIMEOUT_CLI=$2; shift 2 ;;
-    --pod-timeout=*) POD_TIMEOUT_CLI=${1#*=}; shift ;;
+    --pod-timeout) [ $# -ge 2 ] || die "--pod-timeout needs a value"; POD_TIMEOUT_CLI=$2; POD_TIMEOUT_CLI_SET=1; shift 2 ;;
+    --pod-timeout=*) POD_TIMEOUT_CLI=${1#*=}; POD_TIMEOUT_CLI_SET=1; shift ;;
     *) die "unknown args: $*" ;;
   esac
 done
 need_root; load_conf
-POD_TIMEOUT=${POD_TIMEOUT_CLI:-${SMOKE_POD_TIMEOUT:-180s}}
-case "$POD_TIMEOUT" in *[smh]) ;; *[0-9]) POD_TIMEOUT="${POD_TIMEOUT}s" ;; esac
+if [ "$POD_TIMEOUT_CLI_SET" = 1 ]; then
+  POD_TIMEOUT=$(normalize_timeout "$POD_TIMEOUT_CLI" --pod-timeout) || exit 1
+elif [ -n "${SMOKE_POD_TIMEOUT+x}" ]; then
+  POD_TIMEOUT=$(normalize_timeout "$SMOKE_POD_TIMEOUT" SMOKE_POD_TIMEOUT) || exit 1
+else
+  POD_TIMEOUT=180s
+fi
 export_kubeconfig
 
 OUT="$HERE/manifests/generated"

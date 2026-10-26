@@ -92,3 +92,12 @@ export_kubeconfig() {
   fi
   command -v kubectl >/dev/null 2>&1 || die "kubectl not found"
 }
+
+# normalize_timeout VALUE NAME: echo VALUE (bare number gets "s"); error if empty/invalid.
+normalize_timeout() {
+  local v=$1 name=${2:-timeout}
+  if [ -z "$v" ]; then echo "ERROR: $name is empty (expected ^[0-9]+[smh]?$)" >&2; return 1; fi
+  if ! [[ $v =~ ^[0-9]+[smh]?$ ]]; then echo "ERROR: invalid $name '$v' (expected ^[0-9]+[smh]?$)" >&2; return 1; fi
+  case "$v" in *[0-9]) v="${v}s" ;; esac
+  printf '%s\n' "$v"
+}

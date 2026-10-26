@@ -25,7 +25,7 @@ This repo is **CSI only**. It does **not** bundle K8s or Ceph daemons. CephFS CS
   2. `load-images.sh` — import + push to local registry (`HOST:PORT` / `--registry` / `REGISTRY` env override conf)
   3. Ceph side: `create-cephx-users.sh` (on Ceph admin)
   4. `apply-rbd-csi.sh` — render manifests (VIP + secrets) and apply (same registry override)
-  5. `smoke-rbd.sh` — apply `90-smoke-pvc-pod.yaml` (PVC+pause Pod) wait for PVC Bound, then Pod Ready (`--pod-timeout`, default 180s); non-zero exit if the pod never runs
+  5. `smoke-rbd.sh` — apply `90-smoke-pvc-pod.yaml` (PVC+pause Pod), wait for PVC Bound, then Pod Ready (`--pod-timeout` > env/conf `SMOKE_POD_TIMEOUT` > 180s; format `^[0-9]+[smh]?$`, empty/invalid is an error); non-zero exit if the pod never becomes Ready. `--help` for usage
 - `docs/runbook.md` — **现场操作手册**
 
 ## Field order
