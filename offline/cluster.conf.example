@@ -44,7 +44,10 @@ CSI_RESIZER_IMAGE="sig-storage/csi-resizer:v2.2.1"
 CSI_SNAPSHOTTER_IMAGE="sig-storage/csi-snapshotter:v8.6.0"
 CSI_REGISTRAR_IMAGE="sig-storage/csi-node-driver-registrar:v2.18.0"
 
-# StorageClass
+# StorageClass. Leave RBD_MOUNTER empty for krbd.
+# Ubuntu 24.04 kernel 6.8 rejects krbd secrets ("libceph: secret too big 32");
+# set RBD_MOUNTER=rbd-nbd there. The node needs the nbd module.
+RBD_MOUNTER=""
 STORAGE_CLASS_NAME="csi-rbd-sc"
 SC_FSTYPE="ext4"
 SC_RECLAIM_POLICY="Delete"

@@ -145,6 +145,10 @@ fi
 rewrite_images < "$VENDOR/csi-rbdplugin.yaml" | set_ns > "$OUT/09-csi-rbdplugin.yaml"
 
 # --- StorageClass ---
+mounter_line=""
+if [ -n "${RBD_MOUNTER:-}" ]; then
+  mounter_line="  mounter: ${RBD_MOUNTER}"$'\n'
+fi
 cat > "$OUT/10-storageclass.yaml" <<YAML
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
@@ -155,7 +159,7 @@ parameters:
   clusterID: ${CLUSTER_ID}
   pool: ${RBD_POOL}
   imageFeatures: layering
-  csi.storage.k8s.io/provisioner-secret-name: csi-rbd-secret
+${mounter_line}  csi.storage.k8s.io/provisioner-secret-name: csi-rbd-secret
   csi.storage.k8s.io/provisioner-secret-namespace: ${NS}
   csi.storage.k8s.io/controller-expand-secret-name: csi-rbd-secret
   csi.storage.k8s.io/controller-expand-secret-namespace: ${NS}
