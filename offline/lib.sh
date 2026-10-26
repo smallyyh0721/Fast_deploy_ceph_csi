@@ -16,19 +16,12 @@ need_root() { [ "$(id -u)" -eq 0 ] || die "run as root (sudo)"; }
 # Supports: --registry HOST:PORT | --registry=HOST:PORT | HOST:PORT
 # When CLI provides a value, exports REGISTRY for load_conf to keep.
 # Leftover args land in REGISTRY_CLI_REST (bash array).
+# -h/--help is NOT handled here; each caller parses it (value-aware) before calling.
 parse_registry_cli() {
   REGISTRY_CLI_REST=()
   local got=""
   while [ $# -gt 0 ]; do
     case "$1" in
-      -h|--help)
-        cat <<'USAGE' >&2
-Usage: script [HOST:PORT] | [--registry HOST:PORT]
-  CLI registry overrides env REGISTRY and cluster.conf (NODE_IP:REGISTRY_PORT).
-  With no CLI/env, REGISTRY is derived from cluster.conf as before.
-USAGE
-        exit 0
-        ;;
       --registry)
         [ $# -ge 2 ] || die "--registry needs HOST:PORT"
         got="$2"
