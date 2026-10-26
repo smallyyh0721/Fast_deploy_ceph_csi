@@ -37,4 +37,5 @@ This repo is **CSI only**. It does **not** bundle K8s or Ceph daemons. CephFS CS
 
 ## Release
 
-- [bundle-rbd-csi-v3.18.1](https://github.com/smallyyh0721/Fast_deploy_ceph_csi/releases/tag/bundle-rbd-csi-v3.18.1) — `ceph-csi-rbd-v3.18.1-offline-bundle.tar`
+- [bundle-rbd-csi-v3.18.1-20261026](https://github.com/smallyyh0721/Fast_deploy_ceph_csi/releases/tag/bundle-rbd-csi-v3.18.1-20261026) — `ceph-csi-rbd-v3.18.1-20261026-offline-bundle.tar` (smoke-rbd waits Pod Ready; #2/#3/#4/#5)
+- [bundle-rbd-csi-v3.18.1](https://github.com/smallyyh0721/Fast_deploy_ceph_csi/releases/tag/bundle-rbd-csi-v3.18.1) — `ceph-csi-rbd-v3.18.1-offline-bundle.tar` (kept)
