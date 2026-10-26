@@ -62,6 +62,11 @@ fi
 
 kubectl get pvc rbd-smoke-pvc -o wide
 kubectl describe pvc rbd-smoke-pvc | tail -40
-kubectl get pod rbd-smoke-pod -o wide || true
-kubectl describe pod rbd-smoke-pod 2>/dev/null | tail -30 || true
-log "smoke apply done. Expect PVC Bound; Pod Running (pause mounts /mnt/rbd)."
+log "wait for Pod Running (up to 180s)"
+if ! kubectl wait --for=condition=Ready pod/rbd-smoke-pod --timeout=180s; then
+  warn "Pod not Ready"
+  kubectl describe pod rbd-smoke-pod || true
+  die "pod rbd-smoke-pod not Ready"
+fi
+kubectl get pod rbd-smoke-pod -o wide
+log "smoke apply done. PVC Bound and Pod Running (pause mounts /mnt/rbd)."
