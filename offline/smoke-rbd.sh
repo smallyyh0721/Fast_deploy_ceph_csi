@@ -15,6 +15,9 @@ usage() {
 Usage: sudo ./smoke-rbd.sh [REGISTRY | --registry HOST:PORT] [--pod-timeout T]
   --pod-timeout T   Pod Ready wait, ^[0-9]+[smh]?$ (e.g. 180, 300s, 5m). Default 180s.
                     Also via env/cluster.conf SMOKE_POD_TIMEOUT. Empty, zero or invalid -> error.
+  Precedence: CLI > env > cluster.conf > default. cluster.conf uses the
+              ${VAR-default} form (e.g. SMOKE_POD_TIMEOUT="${SMOKE_POD_TIMEOUT-180s}"),
+              so an env var set before running wins over the conf value.
   Note: plain sudo drops env vars. Use `SMOKE_POD_TIMEOUT=5m sudo -E ./smoke-rbd.sh`
         or pass --pod-timeout.
 USAGE

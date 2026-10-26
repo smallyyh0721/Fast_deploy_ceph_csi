@@ -8,6 +8,23 @@
 # Requires: Fast_deploy_k8s registry already running (k8s-local-registry / curl http://$REGISTRY/v2/).
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
+usage() {
+  cat <<'USAGE'
+Usage: sudo ./load-images.sh [HOST:PORT | --registry HOST:PORT]
+  Load CSI image tars into containerd and push to the local registry.
+  Registry priority: CLI > env REGISTRY > cluster.conf (NODE_IP:REGISTRY_PORT).
+  Plain sudo drops env vars: use sudo -E, or pass the registry on the CLI.
+USAGE
+}
+# Help handled here (value-aware: skips the --registry value).
+_a=("$@"); _i=0
+while [ "$_i" -lt "${#_a[@]}" ]; do
+  case "${_a[$_i]}" in
+    -h|--help) usage; exit 0 ;;
+    --registry) _i=$((_i + 2)); continue ;;
+  esac
+  _i=$((_i + 1))
+done
 parse_registry_cli "$@"
 [ "${#REGISTRY_CLI_REST[@]}" -eq 0 ] || die "unknown args: ${REGISTRY_CLI_REST[*]}"
 need_root; load_conf
