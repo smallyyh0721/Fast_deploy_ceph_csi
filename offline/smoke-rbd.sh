@@ -5,11 +5,23 @@
 #   sudo ./smoke-rbd.sh
 #   sudo ./smoke-rbd.sh 192.168.180.16:5000
 #   sudo ./smoke-rbd.sh --registry 192.168.180.16:5000
+#   sudo ./smoke-rbd.sh --pod-timeout 300s
+# Pod Ready timeout priority: --pod-timeout > env/cluster.conf SMOKE_POD_TIMEOUT > 180s
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 parse_registry_cli "$@"
-[ "${#REGISTRY_CLI_REST[@]}" -eq 0 ] || die "unknown args: ${REGISTRY_CLI_REST[*]}"
+POD_TIMEOUT_CLI=""
+set -- ${REGISTRY_CLI_REST[@]+"${REGISTRY_CLI_REST[@]}"}
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --pod-timeout) [ $# -ge 2 ] || die "--pod-timeout needs a value"; POD_TIMEOUT_CLI=$2; shift 2 ;;
+    --pod-timeout=*) POD_TIMEOUT_CLI=${1#*=}; shift ;;
+    *) die "unknown args: $*" ;;
+  esac
+done
 need_root; load_conf
+POD_TIMEOUT=${POD_TIMEOUT_CLI:-${SMOKE_POD_TIMEOUT:-180s}}
+case "$POD_TIMEOUT" in *[smh]) ;; *[0-9]) POD_TIMEOUT="${POD_TIMEOUT}s" ;; esac
 export_kubeconfig
 
 OUT="$HERE/manifests/generated"
@@ -62,11 +74,13 @@ fi
 
 kubectl get pvc rbd-smoke-pvc -o wide
 kubectl describe pvc rbd-smoke-pvc | tail -40
-log "wait for Pod Running (up to 180s)"
-if ! kubectl wait --for=condition=Ready pod/rbd-smoke-pod --timeout=180s; then
+log "wait for Pod Ready (up to ${POD_TIMEOUT})"
+if ! kubectl wait --for=condition=Ready pod/rbd-smoke-pod --timeout="$POD_TIMEOUT"; then
   warn "Pod not Ready"
+  kubectl get pod rbd-smoke-pod -o wide || true
   kubectl describe pod rbd-smoke-pod || true
-  die "pod rbd-smoke-pod not Ready"
+  kubectl get events --field-selector involvedObject.name=rbd-smoke-pod --sort-by=.lastTimestamp || true
+  die "pod rbd-smoke-pod not Ready within ${POD_TIMEOUT}"
 fi
 kubectl get pod rbd-smoke-pod -o wide
 log "smoke apply done. PVC Bound and Pod Running (pause mounts /mnt/rbd)."
