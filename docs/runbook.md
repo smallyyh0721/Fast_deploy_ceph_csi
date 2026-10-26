@@ -77,6 +77,7 @@ kubectl get sc csi-rbd-sc
 # 一条命令：检查 pause → apply PVC+Pod → 等待 Bound
 sudo ./smoke-rbd.sh
 # 或: sudo ./smoke-rbd.sh --registry 192.168.180.16:5000
+# Pod 等待超时（默认 180s，或 cluster.conf SMOKE_POD_TIMEOUT）: sudo ./smoke-rbd.sh --pod-timeout 300s
 ```
 
 pause 检查（现场自检）：
@@ -89,7 +90,9 @@ ctr -n k8s.io images ls | grep pause
 
 若 catalog 无 pause：先跑 Fast_deploy_k8s 的 `setup-registry.sh`，或使用含 `pause-3.10.1.tar` 的新 CSI 离线包后再 `sudo ./load-images.sh`。
 
-合格：PVC `rbd-smoke-pvc` Bound；Pod `rbd-smoke-pod` Running；`kubectl -n ceph-csi logs` 无持续报错。
+脚本先等 PVC Bound，再 `kubectl wait --for=condition=Ready pod/rbd-smoke-pod`；Pod 超时未 Ready 会打印 describe 与 events 并非 0 退出。
+
+合格：脚本退出码 0；PVC `rbd-smoke-pvc` Bound；Pod `rbd-smoke-pod` Running；`kubectl -n ceph-csi logs` 无持续报错。
 
 ## 6. 兼容矩阵（钉死）
 
