@@ -1,5 +1,31 @@
 # Validation
 
+## Live cluster: bundle-rbd-csi-v3.18.1-20261026 (2026-10-26) — SUCCESS
+
+Release tarball `ceph-csi-rbd-v3.18.1-20261026-offline-bundle.tar`, 1000427520 bytes, sha256 `1da7f5fd2eca93a118bdb5300630591309b87b4337f6c6c82c2f71ef95d90ef0`. Scripts were the packaged `offline/`. No script edits during the test.
+
+K8s node `k8s-43` at `10.11.4.43`, Ubuntu 24.04.5, kernel 6.8.0-142-generic, single-node v1.35.7 from `Fast_deploy_k8s` release `bundle-1.35.7`. The local registry listens on `10.11.4.43:5000`.
+
+Ceph fsid `16c96e91-d119-11f1-9c37-021104000028`. Monitors `10.11.4.40:6789,10.11.4.41:6789,10.11.4.42:6789`. This cluster has no monitor VIP. `10.11.4.50` is the RGW VIP and was not used as a monitor. Pool `kubernetes` and user `client.csi-rbd` already existed. `cluster.conf` set `RBD_MOUNTER=rbd-nbd`, and the node loaded `nbd`. Ubuntu 24.04 kernel 6.8 rejects krbd secrets (`libceph: secret too big 32`, issue #1).
+
+```bash
+cd /opt/ceph-csi-offline/offline
+sudo ./load-images.sh
+sudo ./apply-rbd-csi.sh
+sudo ./smoke-rbd.sh
+```
+
+- Images pushed to `10.11.4.43:5000`
+- CSI provisioner 7/7 Running, node plugin 3/3 Running
+- `smoke-rbd.sh` waited until the pod was Ready, then exited 0
+- PVC `rbd-smoke-pvc` Bound, 1Gi, volume `pvc-50f74b3f-c92e-4105-a3e4-6621821f20b5`
+- `rbd-smoke-pod` 1/1 Running
+- StorageClass `csi-rbd-sc` has `mounter: rbd-nbd` and `pool: kubernetes`
+- The host mount is `/dev/nbd1`
+- After the run: same fsid, 12 OSDs up/in, 321 PGs active+clean
+- `HEALTH_WARN` only: `mon.nettest-41` clock skew. Not a script failure
+- No new script defect and no new issue
+
 ## Live cluster 2026-10-26 — PVC Bound, pod Running after #1
 
 Against Ceph fsid `16c96e91-d119-11f1-9c37-021104000028` (mons `10.11.4.40:6789,10.11.4.41:6789,10.11.4.42:6789`, no mon VIP). K8s node `k8s-43` at `10.11.4.43`, single-node 1.35.7.
@@ -20,5 +46,6 @@ Against Ceph fsid `16c96e91-d119-11f1-9c37-021104000028` (mons `10.11.4.40:6789,
 
 ## Residual risk
 
-- Needs kernel `rbd` on K8s nodes, VIP reachability (`CEPH_MON_VIP`), correct CephX caps, and RBD pool ready.
-- Smoke file is PVC-only; a mount Pod needs an image already in the local registry.
+- Ubuntu 24.04 kernel 6.8 needs `RBD_MOUNTER=rbd-nbd` and the `nbd` module. An empty `RBD_MOUNTER` still selects krbd, which failed on this node with `libceph: secret too big 32` (#1).
+- `CEPH_MON_VIP` is the monitor `host:port` list. On this cluster that is the three mons, not the RGW VIP `10.11.4.50`.
+- One mon clock skew stays `HEALTH_WARN` when the Ceph deploy leaves chrony unmanaged.
