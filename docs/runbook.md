@@ -13,7 +13,8 @@
 | Ceph MON VIP | `CEPH_MON_VIP=10.250.0.10:6789`（ingress；可用 `:3300`） |
 | CLUSTER_ID | `ceph fsid` 输出 |
 | RBD pool | `kubernetes` |
-| CSI 用户 | `client.csi-rbd` → Secret `userID=csi-rbd` |
+| CSI 用户 | `client.csi-rbd` → Secret `userID=csi-rbd`，key 类型 **`aes`**（16 字节） |
+| RBD 映射 | **内核 rbd**（StorageClass `mounter: rbd`，宿主机 `/dev/rbdN`）。不要 `rbd-nbd` |
 
 ```text
 顺序：K8s Ready → Ceph+VIP → 建 pool/CephX → load CSI 镜像 → apply → PVC 冒烟
@@ -36,7 +37,10 @@ sudo cp cluster.conf.example cluster.conf
 sudo ./create-cephx-users.sh
 # 记录 FSID → CLUSTER_ID；把 secrets/csi-rbd.key 拷到 K8s 节点
 # 脚本把 key/keyring 写到宿主机 OUT_DIR（默认 ./secrets）；不要对 cephadm shell 用 -o /tmp
-# 用户已存在时可再跑一遍：幂等刷新 caps，并重写 secrets 文件
+# 用户已存在时可再跑一遍：key 已是 aes 则只刷新 caps；是 aes256k 则 rotate 成 aes 并重写 secrets
+# Tentacle 20.2.4 默认 aes256k（32 字节）。Ubuntu 24.04 内核 6.8 的 krbd 会报
+# libceph: secret too big 32。CSI 客户端固定用 aes。daemon key 不动。
+# 该客户端出现 AUTH_INSECURE_CLIENT_KEY_TYPE 是预期。节点全是 Linux >= 7.0 才设 CSI_KEY_TYPE=aes256k。
 ```
 
 手工命令见 `offline/create-cephx-users.md`（`get-or-create` 不带 `-o`，再用 `auth get-key` / `auth get` 重定向到宿主机）。
@@ -59,19 +63,30 @@ sudo ./load-images.sh
 
 ```bash
 # cluster.conf 已填 CLUSTER_ID、CEPH_MON_VIP、CSI_USER_KEY_FILE
+# RBD_MOUNTER=rbd（内核）。写成 rbd-nbd 脚本直接失败。
 # 与 load-images 使用同一 REGISTRY（同样支持 CLI / 环境变量）
 sudo ./apply-rbd-csi.sh
 # sudo ./apply-rbd-csi.sh --registry 192.168.180.16:5000
+# 脚本会 modprobe rbd，并检查 StorageClass mounter=rbd
 kubectl -n ceph-csi get pods -o wide
-kubectl get sc csi-rbd-sc
+kubectl get sc csi-rbd-sc -o jsonpath='{.parameters.mounter}{"\n"}'
 ```
 
 单节点：`PROVISIONER_REPLICAS=1`（默认），脚本会去掉硬反亲和。
+
+节点插件 DaemonSet 已是 privileged，并挂载宿主机 `/dev`、`/sys`、`/lib/modules`。ceph-csi 在 `/sys/bus/rbd` 不存在时会自己 `modprobe rbd`。每个 kubelet 节点需要与 `uname -r` 匹配的 `rbd` 模块（Ubuntu 一般在 `linux-modules` 里）。不要再加载 `nbd` 来当映射器。
 
 ## 5. PVC 冒烟（可选）
 
 先完成 §4 `apply-rbd-csi.sh`（会生成 `manifests/generated/90-smoke-pvc-pod.yaml`：PVC + pause Pod）。  
 冒烟镜像为本地 registry 的 `pause:3.10.1`（与 Fast_deploy_k8s / kubeadm 1.35.7 一致，`imagePullPolicy: IfNotPresent`）。只挂载不写盘。
+
+以前用 `rbd-nbd` 建出来的 PVC **不会**跟着 StorageClass 改映射方式。重测前删掉旧冒烟对象：
+
+```bash
+kubectl delete pod rbd-smoke-pod --wait=true
+kubectl delete pvc rbd-smoke-pvc --wait=true
+```
 
 ```bash
 # 一条命令：检查 pause → apply PVC+Pod → 等待 PVC Bound → 等待 Pod Ready
@@ -97,7 +112,7 @@ ctr -n k8s.io images ls | grep pause
 
 脚本先等 PVC Bound，再 `kubectl wait --for=condition=Ready pod/rbd-smoke-pod`；Pod 超时未 Ready 会打印 describe 与 events 并非 0 退出。
 
-合格：脚本退出码 0；PVC `rbd-smoke-pvc` Bound；Pod `rbd-smoke-pod` Running；`kubectl -n ceph-csi logs` 无持续报错。
+合格：脚本退出码 0；PVC `rbd-smoke-pvc` Bound；Pod `rbd-smoke-pod` Running；PV `volumeAttributes.mounter` 为 `rbd`；本节点 `/proc/mounts` 里该 PV 的源设备是 `/dev/rbd*`（不是 `/dev/nbd*`）；`kubectl -n ceph-csi logs` 无持续报错。
 
 ## 6. 兼容矩阵（钉死）
 

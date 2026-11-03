@@ -28,12 +28,22 @@ This repo is **CSI only**. It does **not** bundle K8s or Ceph daemons. CephFS CS
   5. `smoke-rbd.sh` — apply `90-smoke-pvc-pod.yaml` (PVC+pause Pod), wait for PVC Bound, then Pod Ready (`--pod-timeout` > env/conf `SMOKE_POD_TIMEOUT` > 180s; format `^[0-9]+[smh]?$`, empty/zero/invalid is an error); non-zero exit if the pod never becomes Ready. Plain `sudo` drops env vars: use `SMOKE_POD_TIMEOUT=5m sudo -E ./smoke-rbd.sh` or `--pod-timeout`. Confs copied from the old example have hardcoded `SMOKE_POD_TIMEOUT=180s` (overrides env) — change it to `SMOKE_POD_TIMEOUT="${SMOKE_POD_TIMEOUT-180s}"`. Precedence: CLI > env vars > `cluster.conf` (conf uses `${VAR-default}`, e.g. `SMOKE_POD_TIMEOUT="${SMOKE_POD_TIMEOUT-180s}"`, so env wins) > default. `--help` for usage
 - `docs/runbook.md` — **现场操作手册**
 
+## RBD mounter
+
+Volumes map with **kernel rbd** (`mounter: rbd`, host device `/dev/rbdN`). `rbd-nbd` is refused.
+
+Ceph Tentacle 20.2.4 creates `aes256k` keys (32 bytes) by default. Ubuntu 24.04 kernel 6.8 rejects those on krbd (`libceph: secret too big 32`), which is why an earlier bundle used NBD. `create-cephx-users.sh` creates or rotates only `client.<CSI_USER_ID>` to a 16-byte `aes` key. Daemon keys stay on the cluster default. `AUTH_INSECURE_CLIENT_KEY_TYPE` for that one client is expected until kubelet nodes run Linux 7.0 or newer (`CSI_KEY_TYPE=aes256k`). The node plugin is already privileged and bind-mounts `/dev`, `/sys`, and `/lib/modules`; it modprobes `rbd`. `apply-rbd-csi.sh` also runs `modprobe rbd` on the node where it is executed.
+
+Live check on 2026-11-03: `fast-k8s-deploy` (`10.11.128.44`) mounted the smoke volume from `/dev/rbd0`. Record: `docs/validation.md`.
+
+An existing PV keeps the mounter it was provisioned with. Delete `rbd-smoke-pod` and `rbd-smoke-pvc` before re-running smoke after switching off NBD.
+
 ## Field order
 
 1. K8s Ready (`Fast_deploy_k8s`)
 2. Ceph healthy + **VIP** monitors (`Fast_deploy_ceph` ingress)
-3. Create RBD pool + CephX users (on Ceph)
-4. Load CSI images → apply RBD CSI → `./smoke-rbd.sh` (PVC+pause)
+3. Create RBD pool + CephX user with key type `aes` (on Ceph)
+4. Load CSI images → apply RBD CSI (kernel rbd) → `./smoke-rbd.sh` (PVC+pause)
 
 ## Release
 

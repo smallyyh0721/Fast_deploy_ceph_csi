@@ -101,6 +101,28 @@ fi
 
 kubectl get pvc rbd-smoke-pvc -o wide
 kubectl describe pvc rbd-smoke-pvc | tail -40
+
+PV=$(kubectl get pvc rbd-smoke-pvc -o jsonpath='{.spec.volumeName}')
+[ -n "$PV" ] || die "PVC rbd-smoke-pvc has no volume"
+PV_MOUNTER=$(kubectl get pv "$PV" -o jsonpath='{.spec.csi.volumeAttributes.mounter}')
+log "PV $PV mounter=${PV_MOUNTER:-<unset>}"
+case "$PV_MOUNTER" in
+  rbd) ;;
+  "")
+    warn "PV $PV has no mounter attribute; ceph-csi defaults that to kernel rbd"
+    ;;
+  rbd-nbd|nbd)
+    die "PV $PV was provisioned with mounter=${PV_MOUNTER} (userspace NBD, /dev/nbd*).
+StorageClass edits do not rewrite an existing PV. Delete it and re-run:
+  kubectl delete pod rbd-smoke-pod --wait=true
+  kubectl delete pvc rbd-smoke-pvc --wait=true
+  sudo ./smoke-rbd.sh"
+    ;;
+  *)
+    die "PV $PV mounter=${PV_MOUNTER} is not kernel rbd"
+    ;;
+esac
+
 log "wait for Pod Ready (up to ${POD_TIMEOUT})"
 if ! kubectl wait --for=condition=Ready pod/rbd-smoke-pod --timeout="$POD_TIMEOUT"; then
   warn "Pod not Ready"
@@ -110,4 +132,30 @@ if ! kubectl wait --for=condition=Ready pod/rbd-smoke-pod --timeout="$POD_TIMEOU
   die "pod rbd-smoke-pod not Ready within ${POD_TIMEOUT}"
 fi
 kubectl get pod rbd-smoke-pod -o wide
-log "smoke apply done. PVC Bound and Pod Running (pause mounts /mnt/rbd)."
+
+# Host globalmount / pod mount lines include the PV name. Source must be /dev/rbd*.
+log "block devices: $(ls -d /dev/rbd* /dev/nbd* 2>/dev/null | tr '\n' ' ' || true)"
+saw_rbd=0
+saw_nbd=0
+while read -r src tgt; do
+  [ -n "$src" ] || continue
+  case "$src" in
+    /dev/rbd*) saw_rbd=1; log "kernel rbd mount: $src -> $tgt" ;;
+    /dev/nbd*) saw_nbd=1; warn "nbd mount: $src -> $tgt" ;;
+  esac
+done < <(awk -v pv="$PV" 'index($0, pv) {print $1, $2}' /proc/mounts)
+if [ "$saw_nbd" -eq 1 ]; then
+  die "PV $PV is mounted via NBD (/dev/nbd*). Kernel rbd uses /dev/rbd*."
+fi
+if [ "$saw_rbd" -eq 1 ]; then
+  log "confirmed kernel rbd device for $PV"
+else
+  pod_node=$(kubectl get pod rbd-smoke-pod -o jsonpath='{.spec.nodeName}')
+  this_node=$(hostname)
+  this_short=$(hostname -s 2>/dev/null || printf '%s' "$this_node")
+  if [ "$pod_node" = "$this_node" ] || [ "$pod_node" = "$this_short" ]; then
+    die "pod is on this node ($pod_node) but /proc/mounts has no /dev/rbd* line for PV $PV"
+  fi
+  warn "no local /dev/rbd mount for PV $PV (pod node=${pod_node}, this host=${this_node}). On that node: awk 'index(\$0, \"$PV\")' /proc/mounts"
+fi
+log "smoke apply done. PVC Bound and Pod Running (pause mounts /mnt/rbd) via kernel rbd."

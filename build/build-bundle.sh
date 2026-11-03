@@ -83,4 +83,5 @@ if [ "$MAKE_TAR" = "1" ]; then
 fi
 
 echo "== done OUT=$OUT"
+echo "== bundle maps RBD with kernel rbd (StorageClass mounter: rbd, CSI key type aes)"
 du -sh "$OUT" "$OUT/images"/* 2>/dev/null | head -20

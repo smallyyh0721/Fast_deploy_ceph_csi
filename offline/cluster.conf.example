@@ -44,10 +44,13 @@ CSI_RESIZER_IMAGE="sig-storage/csi-resizer:v2.2.1"
 CSI_SNAPSHOTTER_IMAGE="sig-storage/csi-snapshotter:v8.6.0"
 CSI_REGISTRAR_IMAGE="sig-storage/csi-node-driver-registrar:v2.18.0"
 
-# StorageClass. Leave RBD_MOUNTER empty for krbd.
-# Ubuntu 24.04 kernel 6.8 rejects krbd secrets ("libceph: secret too big 32");
-# set RBD_MOUNTER=rbd-nbd there. The node needs the nbd module.
-RBD_MOUNTER=""
+# StorageClass mounter. ceph-csi value "rbd" is kernel rbd (/dev/rbdN).
+# "krbd" is accepted and written as "rbd". rbd-nbd is refused.
+# Kernel 6.8 rejects 32-byte aes256k secrets ("libceph: secret too big 32").
+# create-cephx-users.sh pins the CSI client to a 16-byte aes key (CSI_KEY_TYPE).
+# Use CSI_KEY_TYPE=aes256k only when every node runs Linux >= 7.0.
+RBD_MOUNTER="rbd"
+CSI_KEY_TYPE="aes"
 STORAGE_CLASS_NAME="csi-rbd-sc"
 SC_FSTYPE="ext4"
 SC_RECLAIM_POLICY="Delete"
