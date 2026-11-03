@@ -1,5 +1,11 @@
 # Progress
 
+## Kernel rbd (krbd)
+
+- StorageClass `mounter: rbd` (kernel, `/dev/rbdN`). `apply-rbd-csi.sh` runs `modprobe rbd` and refuses `RBD_MOUNTER=rbd-nbd`.
+- `create-cephx-users.sh` pins `client.csi-rbd` to CephX key type `aes` (16-byte secret) so Ubuntu 24.04 kernel 6.8 can install it. `aes256k` (32 bytes) is what produced `libceph: secret too big 32`.
+- The 2026-10-26 live pass below used NBD and is historical. Re-test only after rotating the CSI key, re-applying, and deleting the old smoke PVC.
+
 ## 2026-10-26 bundle-rbd-csi-v3.18.1-20261026 live CSI — SUCCESS
 
 - [x] Release tarball deployed unmodified on `k8s-43` (v1.35.7) against existing Ceph fsid `16c96e91-d119-11f1-9c37-021104000028`

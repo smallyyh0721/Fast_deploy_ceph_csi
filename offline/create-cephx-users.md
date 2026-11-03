@@ -18,10 +18,18 @@ sudo cephadm shell -- ceph osd pool application enable kubernetes rbd
 sudo cephadm shell -- ceph rbd pool init kubernetes
 
 # 不要对 cephadm shell 使用 -o /tmp/...（写在容器内，宿主机 cp 会失败）
-sudo cephadm shell -- ceph auth get-or-create client.csi-rbd \
+# 内核 rbd（Ubuntu 24.04 内核 6.8）只能装 16 字节 aes key。
+# Tentacle 20.2.4 默认 aes256k（32 字节）会在 dmesg 里报 libceph: secret too big 32。
+# 用户已存在且是 aes256k 时要 rotate，get-or-create 不会改已有 key 的类型。
+sudo cephadm shell -- ceph mon set auth_allowed_ciphers aes,aes256k
+sudo cephadm shell -- ceph auth get-or-create --key-type=aes client.csi-rbd \
   mon 'profile rbd' \
   mgr 'allow rw' \
   osd 'profile rbd pool=kubernetes'
+# 若上面报 insecure key type not allowed：
+#   sudo cephadm shell -- ceph config set mon mon_auth_allow_insecure_key true
+# 若用户已存在且类型不是 aes：
+#   sudo cephadm shell -- ceph auth rotate --key-type=aes client.csi-rbd
 
 sudo mkdir -p ./secrets
 sudo cephadm shell -- ceph auth get-key client.csi-rbd | sudo tee ./secrets/csi-rbd.key >/dev/null

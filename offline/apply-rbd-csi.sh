@@ -12,6 +12,8 @@ usage() {
   cat <<'USAGE'
 Usage: sudo ./apply-rbd-csi.sh [HOST:PORT | --registry HOST:PORT]
   Render RBD CSI manifests and kubectl apply (RENDER_ONLY=1: render only).
+  StorageClass mounter is kernel rbd (value "rbd", device /dev/rbdN).
+  RBD_MOUNTER=rbd-nbd is refused. Apply also runs modprobe rbd.
   Registry priority: CLI > env REGISTRY > cluster.conf (NODE_IP:REGISTRY_PORT).
   Plain sudo drops env vars: use sudo -E, or pass the registry on the CLI.
 USAGE
@@ -162,10 +164,23 @@ fi
 rewrite_images < "$VENDOR/csi-rbdplugin.yaml" | set_ns > "$OUT/09-csi-rbdplugin.yaml"
 
 # --- StorageClass ---
-mounter_line=""
-if [ -n "${RBD_MOUNTER:-}" ]; then
-  mounter_line="  mounter: ${RBD_MOUNTER}"$'\n'
-fi
+# ceph-csi mounter "rbd" is kernel rbd (krbd), device /dev/rbdN.
+# "krbd" is an alias we write as "rbd". Empty means the same.
+# rbd-nbd is userspace NBD and is refused so an old cluster.conf cannot keep it.
+case "${RBD_MOUNTER:-rbd}" in
+  ""|rbd|krbd) SC_MOUNTER=rbd ;;
+  rbd-nbd|nbd)
+    die "RBD_MOUNTER=${RBD_MOUNTER} selects userspace NBD (/dev/nbd*).
+  This deploy maps with kernel rbd. Set RBD_MOUNTER=rbd in cluster.conf
+  and re-run create-cephx-users.sh so client.${CSI_USER_ID} is key type aes
+  (Ubuntu 24.04 kernel 6.8 rejects 32-byte aes256k: libceph secret too big)."
+    ;;
+  *)
+    die "unsupported RBD_MOUNTER=${RBD_MOUNTER} (want rbd or krbd)"
+    ;;
+esac
+log "RBD mounter: ${SC_MOUNTER} (kernel rbd)"
+
 cat > "$OUT/10-storageclass.yaml" <<YAML
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
@@ -176,7 +191,9 @@ parameters:
   clusterID: ${CLUSTER_ID}
   pool: ${RBD_POOL}
   imageFeatures: layering
-${mounter_line}  csi.storage.k8s.io/provisioner-secret-name: csi-rbd-secret
+  # kernel rbd. ceph-csi value "rbd" maps /dev/rbdN via the rbd module.
+  mounter: ${SC_MOUNTER}
+  csi.storage.k8s.io/provisioner-secret-name: csi-rbd-secret
   csi.storage.k8s.io/provisioner-secret-namespace: ${NS}
   csi.storage.k8s.io/controller-expand-secret-name: csi-rbd-secret
   csi.storage.k8s.io/controller-expand-secret-namespace: ${NS}
@@ -234,6 +251,17 @@ if [ "$RENDER_ONLY" = "1" ]; then
 fi
 
 log "applying (skip smoke pvc by default)"
+# ceph-csi nodeplugin is already privileged and mounts /dev, /sys, and
+# /lib/modules, and it modprobes "rbd" if /sys/bus/rbd is missing.
+# Load it here too so a single-node apply fails before pods start if the
+# module package is absent. Other nodes get the module from the node plugin.
+log "modprobe rbd (kernel mapper)"
+modprobe rbd || die "modprobe rbd failed (kernel $(uname -r)).
+  Install the matching linux-modules package. Kernel rbd needs /sys/bus/rbd and /dev/rbd*.
+  Do not set RBD_MOUNTER=rbd-nbd."
+[ -d /sys/bus/rbd ] || die "rbd module did not create /sys/bus/rbd"
+log "kernel rbd sysfs: /sys/bus/rbd"
+
 kubectl create namespace "$NS" --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "$OUT/01-ceph-config.yaml"
 kubectl apply -f "$OUT/02-ceph-csi-config.yaml"
@@ -250,4 +278,8 @@ log "wait for CSI pods in $NS"
 kubectl -n "$NS" rollout status deploy/csi-rbdplugin-provisioner --timeout=180s || warn "provisioner not ready yet"
 kubectl -n "$NS" get pods -o wide
 kubectl get sc "$STORAGE_CLASS_NAME"
+got_mounter=$(kubectl get sc "$STORAGE_CLASS_NAME" -o jsonpath='{.parameters.mounter}')
+[ "$got_mounter" = rbd ] || die "StorageClass ${STORAGE_CLASS_NAME} mounter is '${got_mounter}', want rbd"
+log "StorageClass ${STORAGE_CLASS_NAME} mounter=rbd (kernel)"
 log "done. Smoke: sudo ./smoke-rbd.sh   # applies $OUT/90-smoke-pvc-pod.yaml"
+log "Existing PVs keep the mounter they were created with. Delete an old NBD smoke PVC before retesting."

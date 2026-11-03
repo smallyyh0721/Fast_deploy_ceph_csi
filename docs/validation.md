@@ -46,6 +46,7 @@ Against Ceph fsid `16c96e91-d119-11f1-9c37-021104000028` (mons `10.11.4.40:6789,
 
 ## Residual risk
 
-- Ubuntu 24.04 kernel 6.8 needs `RBD_MOUNTER=rbd-nbd` and the `nbd` module. An empty `RBD_MOUNTER` still selects krbd, which failed on this node with `libceph: secret too big 32` (#1).
+- The NBD result above is historical. Current scripts set StorageClass `mounter: rbd` and pin `client.csi-rbd` to a 16-byte `aes` key. Ubuntu 24.04 kernel 6.8 rejects 32-byte `aes256k` secrets (`libceph: secret too big 32`, #1). `AUTH_INSECURE_CLIENT_KEY_TYPE` for that client is expected. `CSI_KEY_TYPE=aes256k` is for Linux 7.0+ nodes only.
+- Existing PVs keep the mounter stored at provision time. Delete `rbd-smoke-pod` and `rbd-smoke-pvc` before smoking a cluster that previously used `rbd-nbd`.
 - `CEPH_MON_VIP` is the monitor `host:port` list. On this cluster that is the three mons, not the RGW VIP `10.11.4.50`.
 - One mon clock skew stays `HEALTH_WARN` when the Ceph deploy leaves chrony unmanaged.
