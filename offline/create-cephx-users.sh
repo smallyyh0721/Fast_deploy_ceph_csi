@@ -41,9 +41,29 @@ FSID=$("${CEPH[@]}" fsid)
 echo "Ceph FSID (use as CLUSTER_ID in cluster.conf): $FSID"
 echo "$FSID" > "$OUT_DIR/cluster-fsid.txt"
 
+# Validate before touching the cluster: Ceph rejects min_size > size, and a
+# non-numeric value would only show up as a confusing mismatch later.
+case "$POOL_SIZE" in
+  ''|*[!0-9]*) die "POOL_SIZE must be a positive integer, got: '${POOL_SIZE}'" ;;
+esac
+case "$POOL_MIN_SIZE" in
+  ''|*[!0-9]*) die "POOL_MIN_SIZE must be a positive integer, got: '${POOL_MIN_SIZE}'" ;;
+esac
+POOL_SIZE=$((10#$POOL_SIZE))
+POOL_MIN_SIZE=$((10#$POOL_MIN_SIZE))
+[ "$POOL_SIZE" -ge 1 ] || die "POOL_SIZE must be >= 1, got: ${POOL_SIZE}"
+[ "$POOL_MIN_SIZE" -ge 1 ] || die "POOL_MIN_SIZE must be >= 1, got: ${POOL_MIN_SIZE}"
+[ "$POOL_MIN_SIZE" -le "$POOL_SIZE" ] \
+  || die "POOL_MIN_SIZE (${POOL_MIN_SIZE}) must be <= POOL_SIZE (${POOL_SIZE}); for a single-OSD-host cluster set POOL_SIZE=1 POOL_MIN_SIZE=1"
+
+# Print the value of `ceph osd pool get <pool> <key>` ("size: 3" -> "3").
+pool_get() {
+  "${CEPH[@]}" osd pool get "$RBD_POOL" "$1" | awk -v k="$1:" '$1 == k {print $2; exit}'
+}
+
 echo "== ensure pool $RBD_POOL (size=$POOL_SIZE min_size=$POOL_MIN_SIZE)"
 if ! "${CEPH[@]}" osd pool ls | grep -qx "$RBD_POOL"; then
-  "${CEPH[@]}" osd pool create "$RBD_POOL" 32
+  "${CEPH[@]}" osd pool create "$RBD_POOL" 32 || die "osd pool create $RBD_POOL failed"
 fi
 # Tentacle returns EPERM for size 1 unless this flag is set. Do not hide that
 # failure: a size-3 pool on one OSD host never becomes active.
@@ -51,12 +71,15 @@ size_args=(osd pool set "$RBD_POOL" size "$POOL_SIZE")
 if [ "$POOL_SIZE" = 1 ]; then
   size_args+=(--yes-i-really-mean-it)
 fi
-"${CEPH[@]}" "${size_args[@]}"
-"${CEPH[@]}" osd pool set "$RBD_POOL" min_size "$POOL_MIN_SIZE"
-got_size=$("${CEPH[@]}" osd pool get "$RBD_POOL" size | awk 'NR==1 {print $2}')
-got_min=$("${CEPH[@]}" osd pool get "$RBD_POOL" min_size | awk 'NR==1 {print $2}')
+"${CEPH[@]}" "${size_args[@]}" || die "ceph ${size_args[*]} failed (see the Ceph error above)"
+# Set min_size after size: Ceph refuses min_size > the pool's current size.
+"${CEPH[@]}" osd pool set "$RBD_POOL" min_size "$POOL_MIN_SIZE" \
+  || die "ceph osd pool set $RBD_POOL min_size $POOL_MIN_SIZE failed (see the Ceph error above)"
+got_size=$(pool_get size) || die "ceph osd pool get $RBD_POOL size failed"
+got_min=$(pool_get min_size) || die "ceph osd pool get $RBD_POOL min_size failed"
 [ "$got_size" = "$POOL_SIZE" ] || die "pool $RBD_POOL size is '${got_size:-empty}', want ${POOL_SIZE}"
 [ "$got_min" = "$POOL_MIN_SIZE" ] || die "pool $RBD_POOL min_size is '${got_min:-empty}', want ${POOL_MIN_SIZE}"
+echo "pool $RBD_POOL verified: size=${got_size} min_size=${got_min}"
 "${CEPH[@]}" osd pool application enable "$RBD_POOL" rbd || true
 # init for RBD (idempotent-ish)
 "${CEPH[@]}" rbd pool init "$RBD_POOL" 2>/dev/null || true
