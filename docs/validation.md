@@ -1,5 +1,32 @@
 # Validation
 
+## Live cluster: kernel rbd (2026-11-03) — SUCCESS
+
+Branch `cursor/kernel-rbd-mounter-3537` at `befe3af`, with the pool-size fix on top. The image bundle was not rebuilt: `ceph-csi-rbd-v3.18.1-20261026-offline-bundle.tar`, sha256 `1da7f5fd2eca93a118bdb5300630591309b87b4337f6c6c82c2f71ef95d90ef0`. Scripts copied over that bundle: `apply-rbd-csi.sh`, `create-cephx-users.sh`, `cephx_key.py`, `smoke-rbd.sh`.
+
+New VMs on `10.11.4.3`, Ubuntu 24.04, kernel 6.8.0-142-generic. No monitor VIP. `10.11.4.50` was not used.
+
+| Role | Name | Address |
+|---|---|---|
+| Ceph Tentacle 20.2.4, 3 OSDs | fast-ceph-deploy | 10.11.128.43 |
+| Kubernetes v1.35.7 | fast-k8s-deploy | 10.11.128.44 |
+
+Ceph fsid `a0161ce5-d757-11f1-82d5-02112800002b`. `deploy.sh` and `verify.sh` exited 0 at 07:27:49Z. Pool `kubernetes` is size 1, min_size 1, application rbd. CSI monitor address `10.11.128.43:6789`. The kernel client session used `:3300`. `CSI_KEY_TYPE=aes`. `RBD_MOUNTER=rbd`.
+
+- CSI provisioner 7/7 Running, node plugin `csi-rbdplugin-x4b7z` 3/3 Running
+- StorageClass `csi-rbd-sc` has `mounter: rbd` and `pool: kubernetes`
+- `smoke-rbd.sh` exited 0 at 07:33:03Z
+- PVC `rbd-smoke-pvc` Bound, 1Gi, PV `pvc-5583c596-69ac-4010-8630-29f24f00b809`, `volumeAttributes.mounter=rbd`
+- `rbd-smoke-pod` 1/1 Running, `10.244.0.5`, on `fast-k8s-deploy`
+- Host mount source `/dev/rbd0`. dmesg shows `rbd` major 251 and no `secret too big`
+- `lsmod`: `rbd` is in use. `nbd` was loaded with use count 0 and was not the mount
+
+`HEALTH_WARN` on this single-node cluster: `POOL_NO_REDUNDANCY` on the three size-1 pools, plus `AUTH_INSECURE_CLIENT_KEY_TYPE`, `AUTH_INSECURE_KEYS_ALLOWED`, and `AUTH_INSECURE_KEYS_CREATABLE` for the 16-byte `aes` client key. Expected.
+
+Script defect during the run: `create-cephx-users.sh` hid Tentacle `EPERM` from `osd pool set <pool> size 1` with `|| true`. The pool was already size 1 only because bootstrap had set `osd_pool_default_size=1`. Filed [#7](https://github.com/smallyyh0721/Fast_deploy_ceph_csi/issues/7). The fix on this branch is `5b21530` (`--yes-i-really-mean-it`, then fail if size or min_size does not match) and `6025ebb` (reject a bad `POOL_SIZE` / `POOL_MIN_SIZE` before calling Ceph). The live pool was already size 1, so the user-create step was not re-run after the fix.
+
+`Fast_deploy_ceph` one-click deploy did not fail. The Flannel `--iface` split is the existing Fast_deploy_k8s #1 fix, applied after the Kubernetes bundle checksum.
+
 ## Live cluster: bundle-rbd-csi-v3.18.1-20261026 (2026-10-26) — SUCCESS
 
 Release tarball `ceph-csi-rbd-v3.18.1-20261026-offline-bundle.tar`, 1000427520 bytes, sha256 `1da7f5fd2eca93a118bdb5300630591309b87b4337f6c6c82c2f71ef95d90ef0`. Scripts were the packaged `offline/`. No script edits during the test.
@@ -46,7 +73,8 @@ Against Ceph fsid `16c96e91-d119-11f1-9c37-021104000028` (mons `10.11.4.40:6789,
 
 ## Residual risk
 
-- The NBD result above is historical. Current scripts set StorageClass `mounter: rbd` and pin `client.csi-rbd` to a 16-byte `aes` key. Ubuntu 24.04 kernel 6.8 rejects 32-byte `aes256k` secrets (`libceph: secret too big 32`, #1). `AUTH_INSECURE_CLIENT_KEY_TYPE` for that client is expected. `CSI_KEY_TYPE=aes256k` is for Linux 7.0+ nodes only.
+- 2026-11-03 confirmed kernel rbd on Ubuntu 24.04 kernel 6.8 with a 16-byte `aes` CSI key (`/dev/rbd0`). A 32-byte `aes256k` secret still fails with `libceph: secret too big 32` (#1). `AUTH_INSECURE_CLIENT_KEY_TYPE` for that client is expected. `CSI_KEY_TYPE=aes256k` is for Linux 7.0+ nodes only.
+- A one-host pool needs `POOL_SIZE=1` and `POOL_MIN_SIZE=1`. Tentacle rejects size 1 without `--yes-i-really-mean-it` (#7, fixed on this branch).
 - Existing PVs keep the mounter stored at provision time. Delete `rbd-smoke-pod` and `rbd-smoke-pvc` before smoking a cluster that previously used `rbd-nbd`.
 - `CEPH_MON_VIP` is the monitor `host:port` list. On this cluster that is the three mons, not the RGW VIP `10.11.4.50`.
 - One mon clock skew stays `HEALTH_WARN` when the Ceph deploy leaves chrony unmanaged.

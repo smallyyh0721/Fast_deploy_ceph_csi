@@ -34,6 +34,8 @@ Volumes map with **kernel rbd** (`mounter: rbd`, host device `/dev/rbdN`). `rbd-
 
 Ceph Tentacle 20.2.4 creates `aes256k` keys (32 bytes) by default. Ubuntu 24.04 kernel 6.8 rejects those on krbd (`libceph: secret too big 32`), which is why an earlier bundle used NBD. `create-cephx-users.sh` creates or rotates only `client.<CSI_USER_ID>` to a 16-byte `aes` key. Daemon keys stay on the cluster default. `AUTH_INSECURE_CLIENT_KEY_TYPE` for that one client is expected until kubelet nodes run Linux 7.0 or newer (`CSI_KEY_TYPE=aes256k`). The node plugin is already privileged and bind-mounts `/dev`, `/sys`, and `/lib/modules`; it modprobes `rbd`. `apply-rbd-csi.sh` also runs `modprobe rbd` on the node where it is executed.
 
+Live check on 2026-11-03: `fast-k8s-deploy` (`10.11.128.44`) mounted the smoke volume from `/dev/rbd0`. Record: `docs/validation.md`.
+
 An existing PV keeps the mounter it was provisioned with. Delete `rbd-smoke-pod` and `rbd-smoke-pvc` before re-running smoke after switching off NBD.
 
 ## Field order
