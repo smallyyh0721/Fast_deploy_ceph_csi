@@ -45,8 +45,18 @@ echo "== ensure pool $RBD_POOL (size=$POOL_SIZE min_size=$POOL_MIN_SIZE)"
 if ! "${CEPH[@]}" osd pool ls | grep -qx "$RBD_POOL"; then
   "${CEPH[@]}" osd pool create "$RBD_POOL" 32
 fi
-"${CEPH[@]}" osd pool set "$RBD_POOL" size "$POOL_SIZE" || true
-"${CEPH[@]}" osd pool set "$RBD_POOL" min_size "$POOL_MIN_SIZE" || true
+# Tentacle returns EPERM for size 1 unless this flag is set. Do not hide that
+# failure: a size-3 pool on one OSD host never becomes active.
+size_args=(osd pool set "$RBD_POOL" size "$POOL_SIZE")
+if [ "$POOL_SIZE" = 1 ]; then
+  size_args+=(--yes-i-really-mean-it)
+fi
+"${CEPH[@]}" "${size_args[@]}"
+"${CEPH[@]}" osd pool set "$RBD_POOL" min_size "$POOL_MIN_SIZE"
+got_size=$("${CEPH[@]}" osd pool get "$RBD_POOL" size | awk 'NR==1 {print $2}')
+got_min=$("${CEPH[@]}" osd pool get "$RBD_POOL" min_size | awk 'NR==1 {print $2}')
+[ "$got_size" = "$POOL_SIZE" ] || die "pool $RBD_POOL size is '${got_size:-empty}', want ${POOL_SIZE}"
+[ "$got_min" = "$POOL_MIN_SIZE" ] || die "pool $RBD_POOL min_size is '${got_min:-empty}', want ${POOL_MIN_SIZE}"
 "${CEPH[@]}" osd pool application enable "$RBD_POOL" rbd || true
 # init for RBD (idempotent-ish)
 "${CEPH[@]}" rbd pool init "$RBD_POOL" 2>/dev/null || true
